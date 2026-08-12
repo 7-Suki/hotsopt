@@ -4,7 +4,7 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class ReportGenerator:
@@ -70,7 +70,7 @@ class ReportGenerator:
 
     def _generate_html(self, items: list, stats: dict) -> str:
         """生成HTML格式报告"""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # 统计
@@ -105,9 +105,6 @@ class ReportGenerator:
         # 热点卡片
         cards_html = ""
         for i, item in enumerate(items):
-            value_color = self._score_color(item.value_score)
-            cred_color = self._score_color(item.credibility_score)
-
             tags_html = ""
             if item.tags:
                 tags_html = "".join(
@@ -120,8 +117,8 @@ class ReportGenerator:
                     f'<li>{vp}</li>' for vp in item.viewpoints if vp
                 )
                 viewpoints_html = f"""
-                <div class="viewpoints">
-                    <h4>💬 多方观点</h4>
+                <div class="viewpoints-box">
+                    <h4>多方观点</h4>
                     <ul>{vp_items}</ul>
                 </div>
                 """
@@ -147,19 +144,19 @@ class ReportGenerator:
                 {tags_html and f'<div class="tags">{tags_html}</div>'}
                 {item.ai_summary and f'<p class="ai-summary">📝 {item.ai_summary}</p>'}
                 {item.category and f'<p class="category">📂 分类: {item.category}</p>'}
-                <div class="scores">
-                    <div class="score-item" style="color:{value_color}">
-                        <span class="score-label">💎 价值</span>
-                        <span class="score-value">{item.value_score}/10</span>
-                        {item.value_reason and f'<span class="score-reason">({item.value_reason})</span>'}
+                <div class="ai-analysis">
+                    <div class="score-row">
+                        <span class="score-name">价值评分</span>
+                        <span class="score-number">{item.value_score:.1f}/10</span>
+                        <span class="score-desc">{item.value_reason or ''}</span>
                     </div>
-                    <div class="score-item" style="color:{cred_color}">
-                        <span class="score-label">🛡️ 可信度</span>
-                        <span class="score-value">{item.credibility_score}/10</span>
-                        {item.credibility_reason and f'<span class="score-reason">({item.credibility_reason})</span>'}
+                    <div class="score-row">
+                        <span class="score-name">可信度</span>
+                        <span class="score-number">{item.credibility_score:.1f}/10</span>
+                        <span class="score-desc">{item.credibility_reason or ''}</span>
                     </div>
+                    {viewpoints_html}
                 </div>
-                {viewpoints_html}
                 {merged_html}
                 <div class="card-footer">
                     <span class="time">🕐 {item.timestamp[:19] if item.timestamp else ''}</span>
@@ -286,28 +283,50 @@ class ReportGenerator:
             color: #555;
         }}
         .category {{ color: #888; font-size: 13px; }}
-        .scores {{
-            display: flex;
-            gap: 20px;
-            margin: 10px 0;
+        .ai-analysis {{
+            margin: 12px 0;
         }}
-        .score-item {{
+        .score-row {{
             display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 13px;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            line-height: 1.6;
         }}
-        .score-value {{ font-weight: 700; }}
-        .score-reason {{ font-size: 12px; color: #888; }}
-        .viewpoints {{
-            background: #fff8e1;
-            padding: 10px 14px;
+        .score-name {{
+            color: #e74c3c;
+            font-weight: 600;
+        }}
+        .score-number {{
+            color: #e74c3c;
+            font-weight: 700;
+            margin-right: 6px;
+        }}
+        .score-desc {{
+            color: #333;
+            font-weight: 400;
+        }}
+        .viewpoints-box {{
+            background: #fff9e6;
+            padding: 12px 14px;
             border-radius: 8px;
-            margin: 10px 0;
+            margin-top: 10px;
         }}
-        .viewpoints h4 {{ font-size: 13px; margin-bottom: 6px; }}
-        .viewpoints ul {{ padding-left: 18px; font-size: 13px; color: #666; }}
-        .viewpoints li {{ margin-bottom: 4px; }}
+        .viewpoints-box h4 {{
+            font-size: 14px;
+            color: #e65100;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }}
+        .viewpoints-box ul {{
+            padding-left: 18px;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.6;
+        }}
+        .viewpoints-box li {{ margin-bottom: 6px; }}
         .merged-info {{
             color: #e65100;
             font-size: 12px;
@@ -386,7 +405,7 @@ class ReportGenerator:
 
     def _generate_markdown(self, items: list, stats: dict) -> str:
         """生成Markdown格式报告"""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         dedup_stats = stats.get("dedup", {})

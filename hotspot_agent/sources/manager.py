@@ -4,13 +4,16 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .base import HotItem
 from .github import GitHubSource
 from .reddit import RedditSource
 from .hackernews import HackerNewsSource
 from .rss_feeds import RSSSource
+from .weibo import WeiboSource
+from .zhihu import ZhihuSource
+from .baidu import BaiduSource
 
 
 class SourceManager:
@@ -30,6 +33,9 @@ class SourceManager:
             "reddit": RedditSource,
             "hackernews": HackerNewsSource,
             "rss_feeds": RSSSource,
+            "weibo": WeiboSource,
+            "zhihu": ZhihuSource,
+            "baidu": BaiduSource,
         }
 
         for name, cls in source_classes.items():
@@ -62,7 +68,7 @@ class SourceManager:
         """保存原始采集数据"""
         os.makedirs(output_dir, exist_ok=True)
 
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         filepath = os.path.join(output_dir, f"raw_data_{today}.json")
 
         with open(filepath, "w", encoding="utf-8") as f:

@@ -1,11 +1,12 @@
 """
 RSS 数据源采集器
-支持多个 RSS 订阅源的聚合采集
+支持多个 RSS 订阅源的聚合采集，使用 feedparser 库解析
 """
 
 import re
 import requests
-from datetime import datetime, timezone
+import feedparser
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from .base import BaseSource, HotItem
 
@@ -47,133 +48,98 @@ class RSSSource(BaseSource):
         return clean.strip()
 
     def _parse_feed(self, name: str, url: str) -> list[HotItem]:
-        """解析单个RSS/Atom源"""
-        import xml.etree.ElementTree as ET
-
+        """使用 feedparser 解析 RSS/Atom 源"""
         headers = {
             "User-Agent": "HotspotAgent/1.0 (RSS Reader; contact@example.com)",
         }
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
 
-        content = resp.text
-        root = ET.fromstring(content)
+        # feedparser 可以直接从字符串或响应解析
+        feed = feedparser.parse(resp.content)
+
+        if feed.bozo and not feed.entries:
+            exc = feed.bozo_exception
+            raise Exception(f"Feed解析失败: {exc}")
 
         items = []
+        cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+        for entry in feed.entries:
+            try:
+                title = entry.get("title", "").strip()
+                if not title:
+                    continue
 
-        # 判断是 RSS 2.0 还是 Atom
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
+                # 提取链接
+                link = entry.get("link", "")
+                if not link:
+                    # 某些feed将链接放在links列表中
+                    links = entry.get("links", [])
+                    if links:
+                        link = links[0].get("href", "")
 
-        # Atom 格式
-        atom_entries = root.findall("atom:entry", ns) or root.findall("entry")
-        if atom_entries:
-            for entry in atom_entries:
-                item = self._parse_atom_entry(name, entry, ns)
-                if item:
-                    items.append(item)
-        else:
-            # RSS 2.0 格式
-            for entry in root.iter("item"):
-                item = self._parse_rss_item(name, entry)
-                if item:
-                    items.append(item)
+                # 提取摘要
+                summary = ""
+                if entry.get("summary"):
+                    summary = self._clean_html(entry.summary)
+                elif entry.get("content"):
+                    content = entry.content[0].get("value", "") if entry.content else ""
+                    summary = self._clean_html(content)
+                if entry.get("description"):
+                    desc = self._clean_html(entry.description)
+                    if len(desc) > len(summary):
+                        summary = desc
+
+                # 提取时间
+                ts = datetime.now(timezone.utc).isoformat()
+                entry_dt = datetime.now(timezone.utc)
+                if entry.get("published_parsed"):
+                    try:
+                        entry_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                        ts = entry_dt.isoformat()
+                    except Exception:
+                        pass
+                elif entry.get("updated_parsed"):
+                    try:
+                        entry_dt = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
+                        ts = entry_dt.isoformat()
+                    except Exception:
+                        pass
+
+                # 仅保留前一日内容
+                if entry_dt < cutoff:
+                    continue
+
+                # 提取作者
+                author = entry.get("author", "")
+                if not author and entry.get("authors"):
+                    author = entry.authors[0].get("name", "")
+
+                # 提取标签
+                tags = []
+                if entry.get("tags"):
+                    for tag in entry.tags:
+                        tag_name = tag.get("term", "")
+                        if tag_name:
+                            tags.append(tag_name)
+
+                item_id = link or title
+                hot_item = HotItem(
+                    id=self._make_id(name, item_id[:80]) if item_id else self._make_id(name, str(hash(title))),
+                    title=title,
+                    url=link,
+                    source=name,
+                    source_type="rss",
+                    timestamp=ts,
+                    summary=summary[:500],
+                    author=author,
+                    tags=tags,
+                    score=5.0,
+                    popularity={"source": name},
+                )
+                items.append(hot_item)
+            except Exception as e:
+                print(f"  [RSS {name}] 跳过一条: {e}")
+                continue
 
         return items
-
-    def _parse_atom_entry(self, name: str, entry, ns: dict) -> HotItem:
-        """解析Atom格式条目"""
-        try:
-            title_el = entry.find("atom:title", ns) or entry.find("title")
-            title = title_el.text if title_el is not None else ""
-
-            link_el = entry.find("atom:link", ns) or entry.find("link")
-            link = ""
-            if link_el is not None:
-                link = link_el.get("href", "") or link_el.text or ""
-
-            summary_el = (
-                entry.find("atom:summary", ns)
-                or entry.find("summary")
-                or entry.find("atom:content", ns)
-                or entry.find("content")
-            )
-            summary = self._clean_html(summary_el.text) if summary_el is not None and summary_el.text else ""
-
-            updated_el = entry.find("atom:updated", ns) or entry.find("updated")
-            ts = datetime.now(timezone.utc).isoformat()
-            if updated_el is not None and updated_el.text:
-                try:
-                    ts = parsedate_to_datetime(updated_el.text).isoformat()
-                except Exception:
-                    pass
-
-            # 分类标签
-            tags = []
-            for cat_el in entry.findall("atom:category", ns) or entry.findall("category"):
-                term = cat_el.get("term", "")
-                if term:
-                    tags.append(term)
-
-            item_id = link or title
-
-            return HotItem(
-                id=self._make_id(name, item_id[:80]) if item_id else self._make_id(name, str(hash(title))),
-                title=title,
-                url=link,
-                source=name,
-                source_type="rss",
-                timestamp=ts,
-                summary=summary[:500],
-                author="",
-                tags=tags,
-                score=5.0,
-                popularity={"source": name},
-            )
-
-        except Exception:
-            return None
-
-    def _parse_rss_item(self, name: str, entry) -> HotItem:
-        """解析RSS 2.0格式条目"""
-        try:
-            title = entry.find("title")
-            title_text = title.text if title is not None else ""
-
-            link = entry.find("link")
-            link_text = link.text if link is not None else ""
-
-            desc = entry.find("description")
-            desc_text = self._clean_html(desc.text) if desc is not None and desc.text else ""
-
-            pub_date = entry.find("pubDate")
-            ts = datetime.now(timezone.utc).isoformat()
-            if pub_date is not None and pub_date.text:
-                try:
-                    ts = parsedate_to_datetime(pub_date.text).isoformat()
-                except Exception:
-                    pass
-
-            # 分类
-            tags = []
-            for cat in entry.findall("category"):
-                if cat.text:
-                    tags.append(cat.text)
-
-            item_id = link_text or title_text
-
-            return HotItem(
-                id=self._make_id(name, item_id[:80]) if item_id else self._make_id(name, str(hash(title_text))),
-                title=title_text,
-                url=link_text,
-                source=name,
-                source_type="rss",
-                timestamp=ts,
-                summary=desc_text[:500],
-                author="",
-                tags=tags,
-                score=5.0,
-                popularity={"source": name},
-            )
-
-        except Exception:
-            return None

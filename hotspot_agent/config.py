@@ -47,8 +47,23 @@ DEFAULT_CONFIG = {
                 {"name": "VentureBeat", "url": "https://venturebeat.com/feed/"},
                 {"name": "36氪", "url": "https://36kr.com/feed"},
                 {"name": "机器之心", "url": "https://www.jiqizhixin.com/rss"},
+                {"name": "InfoQ 中文", "url": "https://www.infoq.cn/feed"},
+                {"name": "虎嗅", "url": "https://www.huxiu.com/rss/0.xml"},
+                {"name": "少数派", "url": "https://sspai.com/feed"},
             ],
             "max_items_per_feed": 15,
+        },
+        "weibo": {
+            "enabled": True,
+            "max_items": 30,
+        },
+        "zhihu": {
+            "enabled": True,
+            "max_items": 30,
+        },
+        "baidu": {
+            "enabled": True,
+            "max_items": 30,
         },
     },
     "analysis": {

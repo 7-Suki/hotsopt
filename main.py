@@ -10,7 +10,7 @@ import sys
 import os
 import json
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -99,8 +99,9 @@ def run(args):
     pipeline = AIPipeline(config)
     top_items, stats, ai_prompt = pipeline.run_pipeline(all_items)
 
-    # 保存AI分析提示
-    prompt_path = os.path.join(DATA_DIR, f"ai_prompt_{datetime.now().strftime('%Y-%m-%d')}.md")
+    # 保存AI分析提示（使用前一天日期，与数据周期保持一致）
+    report_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    prompt_path = os.path.join(DATA_DIR, f"ai_prompt_{report_date}.md")
     with open(prompt_path, "w", encoding="utf-8") as f:
         f.write(ai_prompt)
     print(f"AI分析提示已保存到: {prompt_path}")

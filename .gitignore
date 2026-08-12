@@ -9,6 +9,15 @@ hotspot_agent/data/*.html
 hotspot_agent/data/*.json
 hotspot_agent/data/*.csv
 
+# Email temp/debug files
+email_b64.txt
+email_body.json
+email_minified*.html
+mail_b64.json
+_send_email.py
+_email_body_content.txt
+_report_b64*.txt
+
 # WorkBuddy
 .workbuddy/
 

@@ -1,7 +1,9 @@
 """Build email body HTML matching the screenshot card layout"""
 import os
 
-today = "2026-08-11"
+from datetime import datetime
+
+today = datetime.now().strftime("%Y-%m-%d")
 
 ai_analysis = [
     {"index":1,"title":"RLM Agent: 自进化AI编程代理引爆GitHub","url":"https://github.com/trending","source":"GitHub Trending","score":2642,"ai_summary":"一个能够自我改进的RLM(强化学习模型)编程代理，支持长时间自主编码任务，标志着AI Agent从辅助工具向自主开发者的关键转变。","category":"AI/机器学习","value_score":9.0,"value_reason":"AI Agent自主编程是当前最热门赛道，2642星/日增长说明开发者社区高度关注，直接影响软件工程行业格局","credibility_score":8.5},
@@ -117,7 +119,7 @@ email_html = f"""<!DOCTYPE html>
 </body>
 </html>"""
 
-out_path = "hotspot_agent/data/email_body_2026-08-11.html"
+out_path = f"hotspot_agent/data/email_body_{today}.html"
 with open(out_path, "w", encoding="utf-8-sig") as f:
     f.write(email_html)
 
